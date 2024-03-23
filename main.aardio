@@ -1,0 +1,289 @@
+import win.ui;import time.ole;import thread;import console;
+import win.ui;import console;import wsock.tcp.client; import wsock.tcp.server;import win.util.tray;
+import win.ui.menu;import mouse;import process;import fsys;import fsys.dlg;import thread.command;
+import time;import win.ui.tooltip;import config;import dock;import win.font
+
+/*
+var zhwnd = win.find(,"力科示波器网线存图");
+if(zhwnd) {
+    win.close(zhwnd)
+}
+*/
+/*DSG{{*/
+var mainForm = win.form(text="力科示波器网线存图";right=531;bottom=189;border="dialog frame";max=false;topmost=1)
+mainForm.add(
+AutoOpen={cls="checkbox";text="存后打开文件";left=127;top=129;right=228;bottom=151;dl=1;dt=1;z=14};
+Connect={cls="button";text="连接";left=246;top=9;right=296;bottom=29;dr=1;dt=1;z=9};
+CopyRight={cls="plus";text="CopyRight By Misaka HatSune 2020-2025";left=62;top=160;right=297;bottom=180;align="right";db=1;dr=1;notify=1;transparent=1;z=13};
+FileName={cls="edit";left=77;top=88;right=172;bottom=113;bgcolor=12639424;dl=1;dr=1;dt=1;edge=1;font=LOGFONT(h=-15);z=8};
+HelpButton={cls="button";left=10;top=160;right=30;bottom=180;db=1;dl=1;image=$"\res\Help.ico";z=2};
+IP={cls="edit";left=77;top=9;right=240;bottom=29;dl=1;dr=1;dt=1;edge=1;z=3};
+LetsTest={cls="button";text="T";left=427;top=122;right=450;bottom=145;dl=1;dt=1;hide=1;z=27};
+Path={cls="button";text="...";left=268;top=59;right=288;bottom=79;dr=1;dt=1;z=10};
+PathStr={cls="edit";left=77;top=59;right=261;bottom=79;dl=1;dr=1;dt=1;edge=1;readonly=1;z=6};
+Save={cls="button";left=234;top=91;right=288;bottom=145;border=1;dr=1;dt=1;frame=1;image=$"\res\save.ico";z=11};
+SendDelay={cls="button";left=459;top=91;right=513;bottom=145;border=1;dl=1;dr=1;dt=1;frame=1;image=$"\res\button.ico";z=18};
+Setup={cls="button";left=35;top=160;right=55;bottom=180;db=1;dl=1;image=$"\res\Driver.ico";z=16};
+ShowPath={cls="checkbox";text="存后打开路径";left=18;top=129;right=123;bottom=151;dl=1;dt=1;z=15};
+delayTime={cls="edit";text="10";left=350;top=59;right=395;bottom=79;align="right";dl=1;dt=1;edge=1;num=1;z=22};
+groupbox={cls="groupbox";text="延时停止";left=305;top=34;right=521;bottom=180;bgcolor=10789024;dl=1;dt=1;edge=1;z=17};
+normalB={cls="radiobutton";text="Normal键";left=316;top=130;right=396;bottom=152;dl=1;dt=1;group=1;z=21};
+singleB={cls="radiobutton";text="Single键";left=316;top=108;right=396;bottom=130;dl=1;dt=1;group=1;z=20};
+static={cls="static";text="示波器IP";left=12;top=10;right=67;bottom=30;dl=1;dt=1;notify=1;transparent=1;z=4};
+static2={cls="static";text="存图路径";left=18;top=61;right=73;bottom=81;dl=1;dt=1;notify=1;transparent=1;z=5};
+static3={cls="static";text="图片名";left=18;top=93;right=73;bottom=113;dl=1;dt=1;notify=1;transparent=1;z=7};
+static4={cls="static";text=".png";left=179;top=90;right=213;bottom=117;dr=1;dt=1;font=LOGFONT(h=-15);notify=1;transparent=1;z=12};
+static5={cls="static";left=478;top=181;right=532;bottom=201;dl=1;dt=1;notify=1;transparent=1;z=25};
+static6={cls="static";text="等待";left=313;top=61;right=343;bottom=81;align="center";dl=1;dt=1;notify=1;transparent=1;z=23};
+static7={cls="static";text="秒后按键";left=404;top=61;right=458;bottom=81;dl=1;dt=1;notify=1;transparent=1;z=24};
+stopB={cls="radiobutton";text="Stop键";left=316;top=86;right=380;bottom=108;checked=1;dl=1;dt=1;group=1;z=19};
+timeNow={cls="progress";left=316;top=154;right=513;bottom=172;dl=1;dt=1;edge=1;max=100;min=0;z=26};
+yijian={cls="groupbox";text="网线存图";left=10;top=34;right=297;bottom=154;bgcolor=10789024;edge=1;z=1}
+)
+/*}}*/
+
+var help = /*
+力科示波器网线存图
+版本:1.0.0.2020
+
+作者：御坂初琴
+CopyRight By Misaka HatSune 2020-2025
+*/
+
+import skin.sharp;
+skin.sharp.attach("\res\skin.she");
+
+var tooltipCtr = win.ui.tooltip(mainForm);//在窗口上创建tooltip控件 
+tooltipCtr.addTool(mainForm.HelpButton,"关于",0x10/*_TTF_SUBCLASS*/ )
+tooltipCtr.addTool(mainForm.Setup,"安装ActiveDSO驱动",0x10/*_TTF_SUBCLASS*/ )
+tooltipCtr.addTool(mainForm.Save,"存图(Enter)",0x10/*_TTF_SUBCLASS*/ )
+tooltipCtr.addTool(mainForm.SendDelay,"延时发送",0x10/*_TTF_SUBCLASS*/ )
+//tooltipCtr.addTool(mainForm.oneadd,'在当前光标的位置增加一条\r\n如果没有选中任何一行，则在最底部添加',0x10/*_TTF_SUBCLASS*/ )
+
+var wndObj = dock(mainForm, 10);
+//吸附
+wndObj.wndDock(true)
+//置顶 应使用内部方法避免冲突
+//mainForm.wndTopmost(true)
+//留边
+mainForm.wndMargin(true)
+
+var file,err = io.open('力科示波器网线存图.dbg')
+if(file != null){
+	io.open()
+	win.show(console.getWindow(),6)
+}
+
+var tcpServer;
+
+tray = win.util.tray(mainForm.hwnd) //创建托盘图标
+tray.message = 0x400+9981/*_WM_TRAYMESSAGE*/
+tray.tip = mainForm.text //设置鼠标提示
+
+mainForm.trayicon = tray;
+
+mainForm.traymenu=win.ui.popmenu(mainForm);
+mainForm.traymenu.add('打开',function(id){ //添加了一个打开主界面的菜单
+    mainForm.show(); 
+})
+mainForm.traymenu.add('退出',function(id){ //添加了一个退出程序的菜单
+   	mainForm.close();
+})
+
+//初始化到右侧中间
+var width, height = win.getScreen();
+var winHeight = mainForm.height; 
+var winWidth = mainForm.width;
+win.setPos(mainForm.hwnd, width-winWidth, height-winHeight-60, , );
+//win.setPos(mainForm.hwnd, 0, height-winHeight-60, , );
+
+//绑定config文件
+mainForm.bindConfig( config.LecroySave,{
+    edit = "text"; //绑定edit控件的text属性值到配置文件
+    radiobutton = "checked";
+    checkbox = "checked";
+    combobox = "selIndex";
+} );
+
+config.LecroySave.load(); //加载默认设置
+
+mainForm.FileName.text = "";
+if(mainForm.PathStr.text == "")mainForm.PathStr.text = fsys.getSpecial()+ "\";
+if(mainForm.stopB.checked == true)sendMode = 1;
+if(mainForm.singleB.checked == true)sendMode = 2;
+if(mainForm.normalB.checked == true)sendMode = 3;
+
+//下面是获取鼠标消息弹出上面的右键菜单
+mainForm.wndproc = function(hwnd,message,wparam,lparam){
+    select(message) {//判断消息类型
+        case( 0x400+9981/*_WM_TRAYMESSAGE*/ ) { //托盘图标消息
+            if(lparam = 0x203/*_WM_LBUTTONDBLCLK)*/){  //鼠标双击
+                mainForm.show(true);
+                win.showForeground(mainForm.hwnd)
+            }
+            elseif(lparam =0x205/*_WM_RBUTTONUP*/){ //鼠标右键
+                x,y = mouse.getPos();
+                win.setForeground(mainForm.hwnd)
+                mainForm.traymenu.popup(x,y,true)
+            }  
+        } 
+        case( 0x112/*_WM_SYSCOMMAND*/ ){ //系统命令消息
+            if( wparam == 0xF020/*_SC_MINIMIZE*/ ){ //用户点击了最小化按钮
+                mainForm.show(false); //隐藏窗口
+                return true;//阻击默认消息传递，取消最小化过程
+            } 
+        }
+    } 
+}
+
+
+mainForm.HelpButton.oncommand = function(id,event){
+	mainForm.msgbox(help)
+}
+
+mainForm.CopyRight.oncommand = function(id,event){
+	process.execute(config.__website);
+}
+
+mainForm.CopyRight.skin(
+	color = {  
+		hover = 0xFFFF0000; //鼠标移上去的颜色
+		active = 0xFF00FF00; //鼠标按下去的颜色
+	}
+)
+
+mainForm.Connect.oncommand = function(id,event){
+	scope = com.CreateObject("LeCroy.ActiveDSOCtrl.1")
+	scope.MakeConnection("IP:" + mainForm.IP.text)     //连接示波器IP地址
+	if(scope){
+		mainForm.IP.bgcolor = 0x008000;
+		mainForm.IP.color = 0xffffff;
+		mainForm.IP.redraw();
+		mainForm.Connect.text = "已连接"
+	}
+	else{
+		mainForm.IP.showErrorTip("连接失败", "请检查IP输入是否正确，或者是否已经安装了驱动程序", 2)
+	}
+}
+
+mainForm.Path.oncommand = function(id,event){
+	var path = fsys.dlg.opendir()
+	io.print(path)
+	if(path != null) 
+		mainForm.PathStr.text = path;
+	if(!string.endWith(mainForm.PathStr.text, "\"))mainForm.PathStr.text = mainForm.PathStr.text + "\"
+}
+
+mainForm.Save.oncommand = function(id,event){
+    if(mainForm.PathStr.text == ""){
+    	mainForm.PathStr.showErrorTip("错误", "路径不能为空", 2)
+    	return 0;
+    }
+    if(mainForm.FileName.text == ""){
+    	mainForm.FileName.showErrorTip("错误", "文件名不能为空", 2)
+    	return 0;
+    }
+    var file,err = io.open(mainForm.PathStr.text + mainForm.FileName.text + ".png")
+	if(file != null){
+		if(win.msgboxTest('存在同名文件，是否覆盖', "覆盖确认") == false){
+			mainForm.FileName.showErrorTip("错误", "文件名重复，请重新命名", 2)
+    		return 0;
+    	}
+    	file.close()
+	}
+    
+	if(scope){
+		//win.msgboxTimeout("正在保存...", ,2)
+		mainForm.FileName.showInfoTip("已保存截图", mainForm.PathStr.text + mainForm.FileName.text + ".png", 1)
+		scope.StoreHardcopyToFile("PNG", "", mainForm.PathStr.text + mainForm.FileName.text + ".png")
+		if(mainForm.ShowPath.checked == true) process.execute(mainForm.PathStr.text)
+		if(mainForm.AutoOpen.checked == true) process.execute(mainForm.PathStr.text + mainForm.FileName.text + ".png")
+		
+	}
+	else 
+		mainForm.IP.showErrorTip("保存失败", "您尚未连接示波器", 2)
+	
+}
+
+mainForm.Setup.oncommand = function(id,event){
+	process.execute("Driver.exe")
+	var driver = $"/res/Driver.exe"
+	string.save(fsys.getTempDir()+"SaveLecroy\Driver.exe", driver);
+	//process.explore(fsys.getTempDir());
+	process.execute(fsys.getTempDir()+"SaveLecroy\Driver.exe")
+
+	//win.msgboxTimeout("即将跳转到下载链接..." + '\n' + "请在该网站搜索“力科”进行下载。", , 3000)
+	//process.execute(config.__website)
+
+}
+
+mainForm.FileName.onOk = function(id,event){
+	mainForm.Save.oncommand();
+}
+
+mainForm.stopB.oncommand = function(id,event){
+	mainForm.singleB.checked = false;
+	mainForm.normalB.checked = false;
+	sendMode = 1;
+}
+
+mainForm.singleB.oncommand = function(id,event){
+	mainForm.stopB.checked = false;
+	mainForm.normalB.checked = false;
+	sendMode = 2;	
+}
+
+mainForm.normalB.oncommand = function(id,event){
+	mainForm.stopB.checked = false;
+	mainForm.singleB.checked = false;
+	sendMode = 3;	
+}
+
+mainForm.SendDelay.oncommand = function(id,event){
+	if(scope){
+		mainForm.timeNow.max = tonumber(mainForm.delayTime.text)
+		for(i = 0; mainForm.delayTime.text; 1){
+			mainForm.timeNow.pos = i;
+			win.delay(1000);
+		}
+		
+		io.print("sendMode", sendMode)	
+		select (sendMode){
+			case 1{
+				scope.WriteString("TRMD STOP", true)         //触发模式-STOP
+			};
+			case 2{
+				scope.WriteString("TRMD SINGLE", true)       //触发模式-SINGLE
+			};
+			case 3{
+				scope.WriteString("TRMD NORMAL", true)       //触发模式-NORMAL
+			};
+		}
+		mainForm.delayTime.showInfoTip("已发送", "已成功模拟点击按钮", 2)
+	}
+	else 
+		mainForm.IP.showErrorTip("发送失败", "您尚未连接示波器", 2)
+}
+
+mainForm.LetsTest.oncommand = function(id,event){
+	if(scope){	
+		io.print("sendMode", sendMode)	
+		select (sendMode){
+			case 1{
+				scope.WriteString("TRMD STOP", true)         //触发模式-STOP
+			};
+			case 2{
+				scope.WriteString("TRMD SINGLE", true)       //触发模式-SINGLE
+			};
+			case 3{
+				scope.WriteString("TRMD NORMAL", true)       //触发模式-NORMAL
+			};
+		}
+		mainForm.delayTime.showInfoTip("已发送", "已成功模拟点击按钮", 2)
+	}
+	else 
+		mainForm.IP.showErrorTip("发送失败", "您尚未连接示波器", 2)
+}
+
+mainForm.show() 
+win.loopMessage();

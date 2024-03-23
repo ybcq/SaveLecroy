@@ -1,0 +1,143 @@
+﻿class dock{
+    ctor(mainForm, acts=10/*每过程动作次数*/, isTop=false/*置顶*/, isDock=true/*吸附*/, margin=false/*留边*/){
+        assert(mainForm[["hwnd"]], "参数@1必须是窗体对象");
+        acts = ..math.abs(tonumber(acts) : 1);
+        
+        //this = win.form(); this.messageOnly();
+        this = mainForm;
+        this.site, this.msIn = "", 0;
+        
+        var scrw, scrh = win.getScreen();
+        var alSign;
+        var wndAlpha = function(v = false){
+            if(margin) return;
+            alSign = v ? 1 : false;
+            this.transparent(alSign);
+        }
+        
+        var ap = {}; //aTimer动作定时器运行时参数
+        var aTimer = win.timer(, 10);
+        aTimer.onTimer = function(hwnd,msg,id,tick){
+            var c = true;
+            if(ap[["site"]] == "top"){
+                ap.y += ap.v;
+                c = ap.msIn ? !(ap.y<0) : !(ap.y>4-ap.h);
+                if(c) ap.y = !ap.msIn ? 4-ap.h : 0;
+            }
+            elseif(ap[["site"]] == "left"){
+                ap.x += ap.v;
+                c = ap.msIn ? !(ap.x<0) : !(ap.x>4-ap.w);
+                if(c) ap.x = !ap.msIn ? 4-ap.w : 0;
+            }
+            elseif(ap[["site"]] == "right"){
+                ap.x -= ap.v;
+                c = ap.msIn ? !(ap.x>scrw-ap.w) : !(ap.x<scrw-4);
+                if(c) ap.x = ap.msIn ? scrw-ap.w : scrw-4;
+            }
+            this.setPos(ap.x, ap.y);
+            if(c){
+                if(#ap[["site"]] && !ap.msIn){
+                    wndAlpha(1);
+                    if(!isTop) win.setTopmost(this.hwnd);
+                }
+                else if(!isTop) win.setTopmost(this.hwnd, false);
+                owner.disable();
+            }
+            else if(alSign) wndAlpha();
+        }
+        
+        var msPos = ::POINT();
+        var mTimer = win.timer(, 10);
+        mTimer.onTimer = function(hwnd,msg,id,tick){
+            var x, y, w, h = this.getPos();
+            if(w >= scrw) return;
+            
+            //**判断窗口停靠位置
+            var site = ""
+            if(x <= 0) site = "left";
+            elseif(x+w >= scrw) site = "right";
+            elseif(y <= 0) site = "top";
+            
+            if(this.site != site){
+                this.site = site
+                ::PostMessage(this.hwnd, 0x503, 0, 0)
+            }
+            //**/
+            
+            //**检测鼠标进出窗口 左键状态 判断是否动作
+            _getMsPos(msPos)
+            var msIn = _msIn(msPos.x, msPos.y) ? 1 : 0
+            var v = _getAsyncKeyState(1)
+            if(this.msIn != msIn){
+                this.msIn = msIn
+                ::PostMessage(this.hwnd, 0x5A3, 0, 0)
+            }
+            else if(!v) return;
+            if(!#site || v) return;
+            //**/
+            
+            //**执行动作
+            v = (site == "top") ? ..math.ceil(h/acts) : ..math.ceil(w/acts);
+            v = msIn ? v : -v;
+            ap.site,ap.msIn,ap.x,ap.y,ap.w,ap.h,ap.v = site,msIn,x,y,w,h,v;
+            aTimer.enable();
+            //**/
+        }
+        
+        this.wndMargin = function(v = false){
+            margin = !!v
+        }
+        
+        //**窗口呼出
+        this.wndDisplay = function(){
+            var x, y, w, h = owner.getPos();
+            if(x<0) x = 0
+            elseif(x+w>scrw) x = scrw-w
+            if(y<0) y = 0
+            elseif(y+h>scrh) y = scrh-h
+            owner.setPos(x, y)
+            owner.transparent(false)
+        }
+        this.wndDisplay()
+        //**/
+        
+        //**窗口置顶 避免与aTimer里的win.setTopmost冲突
+        this.wndTopmost = function(v){
+            isTop = !!v
+            win.setTopmost(owner.hwnd, isTop)
+            return isTop;
+        }
+        this.wndTopmost(isTop)
+        //**/
+        
+        //**窗口吸附
+        this.wndDock = function(v = true){
+            isDock = !!v
+            if(isDock) mTimer.enable();
+            else { mTimer.disable(); owner.wndDisplay() }
+            return isDock;
+        }
+        this.wndDock(isDock)
+        //**/
+        
+        this.wndproc = {
+            [0x7E/*_WM_DISPLAYCHANGE 屏幕分辨率改变*/] = function(hwnd,message,wParam,lParam){
+                scrw, scrh = win.getScreen();
+                owner.wndDisplay()
+            }
+        }
+        ::PostMessage(this.hwnd, 0x5A3, 0, 0);
+    };
+}
+namespace dock{
+    import win.timer;
+    
+    _getMsPos = ::User32.GetCursorPos;
+    _fromPoint = ::User32.WindowFromPoint;
+    _getAsyncKeyState = ::User32.GetAsyncKeyState;
+    _getWindowThreadProcessId = ::User32.GetWindowThreadProcessId;
+    _msIn = function(x, y){
+        var hwnd = _fromPoint(x, y);
+        return _getWindowThreadProcessId(hwnd, 0) == ..thread.getId();
+    }
+}
